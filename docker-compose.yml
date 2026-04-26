@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: crx_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crx_user
+      POSTGRES_PASSWORD: crx_password
+      POSTGRES_DB: crx_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - crx_postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: crx_app
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://crx_user:crx_password@postgres:5432/crx_db
+      PORT: 3001
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      REFRESH_TOKEN_EXPIRES_IN: ${REFRESH_TOKEN_EXPIRES_IN}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+    depends_on:
+      - postgres
+
+volumes:
+  crx_postgres_data:

@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CONSUMER
+  BRAND
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ServiceType {
+  HOMEPAGE_HIGHLIGHT
+  SOCIAL_POST
+  PHYSICAL_STORE
+  PHOTO_SHOOT
+  EVENT
+  NEWSLETTER
+}
+
+enum ServiceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model User {
+  id                   String   @id @default(cuid())
+  email                String   @unique
+  password             String
+  role                 Role     @default(CONSUMER)
+  newsletterSubscribed Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  brand         Brand?
+  orders        Order[]
+  refreshTokens RefreshToken[]
+}
+
+model Brand {
+  id                   String            @id @default(cuid())
+  userId               String            @unique
+  name                 String
+  slug                 String            @unique
+  description          String?
+  story                String?
+  banner               String?
+  logo                 String?
+  credits              Int               @default(0)
+  isActive             Boolean           @default(false)
+  status               ApplicationStatus @default(PENDING)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id])
+  products        Product[]
+  applications    Application[]
+  creditLogs      CreditLog[]
+  serviceRequests ServiceRequest[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  brandId     String
+  name        String
+  description String?
+  price       Float
+  stock       Int      @default(0)
+  images      String[]
+  sizes       String[]
+  colors      String[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  brand      Brand       @relation(fields: [brandId], references: [id])
+  orderItems OrderItem[]
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  userId    String
+  status    OrderStatus @default(PENDING)
+  total     Float
+  address   Json
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id])
+  items OrderItem[]
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Application {
+  id        String            @id @default(cuid())
+  brandId   String
+  status    ApplicationStatus @default(PENDING)
+  message   String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  brand Brand @relation(fields: [brandId], references: [id])
+}
+
+model CreditLog {
+  id          String   @id @default(cuid())
+  brandId     String
+  amount      Int
+  description String
+  createdAt   DateTime @default(now())
+
+  brand Brand @relation(fields: [brandId], references: [id])
+}
+
+model ServiceRequest {
+  id        String        @id @default(cuid())
+  brandId   String
+  type      ServiceType
+  status    ServiceStatus @default(PENDING)
+  cost      Int
+  details   Json?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  brand Brand @relation(fields: [brandId], references: [id])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
