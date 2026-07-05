@@ -6,11 +6,22 @@ import { RegisterInput, LoginInput } from './auth.schemas'
 const JWT_SECRET = process.env.JWT_SECRET!
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m'
 
-export const authService = {
+function generateSlug(email: string) {
+  const base = email
+    .split('@')[0]
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 
+  return `${base}-${Date.now()}`
+}
+
+export const authService = {
   async register(data: RegisterInput) {
     const existing = await prisma.user.findUnique({
-      where: { email: data.email }
+      where: { email: data.email },
     })
 
     if (existing) {
@@ -19,18 +30,41 @@ export const authService = {
 
     const hashedPassword = await bcrypt.hash(data.password, 12)
 
-    const user = await prisma.user.create({
-      data: {
-        email: data.email,
-        password: hashedPassword,
-        role: data.role
-      },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        createdAt: true
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          email: data.email,
+          password: hashedPassword,
+          role: data.role,
+        },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
+      })
+
+      if (data.role === 'BRAND') {
+        const brandName = data.email.split('@')[0]
+
+        await tx.brand.create({
+          data: {
+            userId: createdUser.id,
+            name: brandName,
+            slug: generateSlug(data.email),
+            description: 'Nouvelle marque inscrite sur CRX.',
+            story: '',
+            banner: '',
+            logo: '',
+            credits: 0,
+            isActive: false,
+            status: 'PENDING',
+          },
+        })
       }
+
+      return createdUser
     })
 
     return user
@@ -38,7 +72,7 @@ export const authService = {
 
   async login(data: LoginInput) {
     const user = await prisma.user.findUnique({
-      where: { email: data.email }
+      where: { email: data.email },
     })
 
     if (!user) {
@@ -70,8 +104,8 @@ export const authService = {
       data: {
         userId: user.id,
         token: refreshToken,
-        expiresAt
-      }
+        expiresAt,
+      },
     })
 
     return {
@@ -80,21 +114,21 @@ export const authService = {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role
-      }
+        role: user.role,
+      },
     }
   },
 
   async logout(refreshToken: string) {
     await prisma.refreshToken.deleteMany({
-      where: { token: refreshToken }
+      where: { token: refreshToken },
     })
   },
 
   async refresh(refreshToken: string) {
     const existing = await prisma.refreshToken.findUnique({
       where: { token: refreshToken },
-      include: { user: true }
+      include: { user: true },
     })
 
     if (!existing || existing.expiresAt < new Date()) {
@@ -108,5 +142,5 @@ export const authService = {
     )
 
     return { accessToken }
-  }
+  },
 }
