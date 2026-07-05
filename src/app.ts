@@ -12,39 +12,52 @@ import { startCreditsCron } from './jobs/creditsCron'
 
 dotenv.config()
 
-const app = Fastify({ logger: true })
+export function buildApp() {
+  const app = Fastify({
+    logger: process.env.NODE_ENV !== 'test',
+  })
+
+  app.register(cors, {
+    origin: [
+      'http://localhost:3000',
+      'https://crx-market.fr',
+      'https://www.crx-market.fr',
+      /\.vercel\.app$/,
+    ],
+    credentials: true,
+  })
+
+  app.register(authRoutes, { prefix: '/api' })
+  app.register(brandsRoutes, { prefix: '/api' })
+  app.register(productsRoutes, { prefix: '/api' })
+  app.register(ordersRoutes, { prefix: '/api' })
+  app.register(creditsRoutes, { prefix: '/api' })
+  app.register(adminRoutes, { prefix: '/api' })
+  app.register(newsletterRoutes, { prefix: '/api' })
+
+  app.get('/health', async () => {
+    return { status: 'ok', project: 'CRX Backend' }
+  })
+
+  return app
+}
 
 const start = async () => {
+  const app = buildApp()
+
   try {
-    await app.register(cors, {
-      origin: [
-        'http://localhost:3000',
-        'https://crx-market.fr',
-        'https://www.crx-market.fr',
-        /\.vercel\.app$/
-      ],
-      credentials: true
-    })
-
-    app.register(authRoutes, { prefix: '/api' })
-    app.register(brandsRoutes, { prefix: '/api' })
-    app.register(productsRoutes, { prefix: '/api' })
-    app.register(ordersRoutes, { prefix: '/api' })
-    app.register(creditsRoutes, { prefix: '/api' })
-    app.register(adminRoutes, { prefix: '/api' })
-    app.register(newsletterRoutes, { prefix: '/api' })
-
-    app.get('/health', async () => {
-      return { status: 'ok', project: 'CRX Backend' }
-    })
-
     startCreditsCron()
 
-    await app.listen({ port: Number(process.env.PORT) || 3001, host: '0.0.0.0' })
+    await app.listen({
+      port: Number(process.env.PORT) || 3001,
+      host: '0.0.0.0',
+    })
   } catch (err) {
     app.log.error(err)
     process.exit(1)
   }
 }
 
-start()
+if (process.env.NODE_ENV !== 'test') {
+  start()
+}
